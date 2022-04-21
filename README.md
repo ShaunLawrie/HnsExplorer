@@ -6,7 +6,7 @@ This was created while I have been learning more about the HNS and how to debug 
 ## Running Instructions
 
 ### Search
-Entering something like a container ID in the test entry and hitting enter will do a primitive search for all HNS activities that reference it.
+Entering something like a container ID in the text entry field and hitting enter will do a primitive search for all HNS activities that reference it.
 ![image](https://user-images.githubusercontent.com/13159458/164382951-0f7648fc-694f-4050-b1ec-78dca21dffe2.png)
 
 ### Dump to JSON
