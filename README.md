@@ -1,13 +1,16 @@
 # HNS Explorer
-A simple GUI for exploring the data in Windows Host Networking Service.  
+A simple GUI for exploring the data in the Windows Host Network Service.  
 
-This was created while I have been learning more about the HNS and how to debug container networking issues on Windows Kubernetes nodes.
+The Host Network Service is the system underpinning container networking on Windows:  
+https://docs.microsoft.com/en-us/virtualization/windowscontainers/container-networking/architecture
 
-## Running Instructions
+This was created while I've been learning more about the HNS and how to debug container networking issues on Windows Kubernetes nodes.
+
+## How To Use
 
 ### Search
 Entering something like a container ID in the text entry field and hitting enter will do a primitive search for all HNS activities that reference it.
-![image](https://user-images.githubusercontent.com/13159458/164382951-0f7648fc-694f-4050-b1ec-78dca21dffe2.png)
+![image](https://user-images.githubusercontent.com/13159458/164613193-aa8c04ff-9eda-474a-ba20-82c5494b51b7.png)
 
 ### Dump to JSON
 The "Dump to JSON" button will dump all the data collected by the tool to a massive JSON file.
