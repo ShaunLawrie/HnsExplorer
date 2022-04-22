@@ -1,3 +1,4 @@
+using HnsExplorer.Extensions;
 using System.Diagnostics;
 using System.Text.Json;
 using System.Text.Json.Serialization;
@@ -19,21 +20,14 @@ public partial class SummaryForm : Form
 
     private void LoadTreeview()
     {
-        var allData = new Dictionary<string, IEnumerable<JsonElement>>();
+        
 
         var activitiesData = Program.HnsAccess.GetActivities();
-        allData.Add("Activities", activitiesData);
         var namespaceData = Program.HnsAccess.GetNamespaces();
-        allData.Add("Namespaces", namespaceData);
         var networkData = Program.HnsAccess.GetNetworks();
-        allData.Add("Network", networkData);
         var policyData = Program.HnsAccess.GetPolicyLists();
-        allData.Add("Policies", policyData);
         var endpointData = Program.HnsAccess.GetEndpoints();
-        allData.Add("Endpoints", endpointData);
-
         var computeData = Program.HcsAccess.GetComputeSystems();
-        allData.Add("Compute", computeData);
 
         var summaryOutput = $"Activities: {activitiesData.Count()}{Environment.NewLine}";
         summaryOutput += $"Namespaces: {namespaceData.Count()}{Environment.NewLine}";
@@ -46,198 +40,56 @@ public partial class SummaryForm : Form
 
         treeView1.Nodes.Clear();
 
-        var activitiesNode = new TreeNode("Activities");
-        activitiesNode.Tag = $"{activitiesData.Count()} activities";
-        var childActivities = new List<JsonElement>();
-        foreach (var item in activitiesData)
+        var activitiesNode = new TreeNode
         {
-            var id = "Missing ID";
-            if(item.TryGetProperty("ID", out JsonElement idFound))
-            {
-                id = idFound.GetString() ?? "Missing ID";
-            }
-            var hasParent = item.TryGetProperty("parentId", out _);
-            if(!hasParent)
-            {
-                var allocators = item.GetProperty("Allocators").EnumerateArray();
-                var allocationTags = "";
-                foreach (var allocator in allocators)
-                {
-                    allocationTags += allocator.GetProperty("Tag").GetString() + ", ";
-                }
-                allocationTags = allocationTags.Substring(0, allocationTags.Length - 2);
-                activitiesNode.Nodes.Add(new TreeNode()
-                {
-                    Text = $"Activity [{allocationTags}]",
-                    Name = id.ToLower(),
-                    Tag = item
-                });
-            }
-            else
-            {
-                childActivities.Add(item);
-            }
-        }
-
-        var passes = 0;
-        var maxPasses = 25;
-        while (childActivities.Count() > 0)
-        {
-            if(passes >= maxPasses)
-            {
-                break;
-            }
-            var childrenToProcess = childActivities.ToList();
-            foreach(var orphanedActivity in childrenToProcess)
-            {
-                var parentId = orphanedActivity.GetProperty("parentId").GetString()?.ToLower();
-                var id = orphanedActivity.GetProperty("ID").GetString()?.ToLower();
-
-                var parent = activitiesNode.Nodes.Find(parentId, true).FirstOrDefault();
-                if (parent is not null)
-                {
-                    var allocationTags = "";
-                    if (orphanedActivity.TryGetProperty("Allocators", out var allocatorsOutput))
-                    {
-                        var allocators = allocatorsOutput.EnumerateArray();
-                        foreach (var allocator in allocators)
-                        {
-                            allocationTags += allocator.GetProperty("Tag").GetString() + ", ";
-                        }
-                        allocationTags = allocationTags.Substring(0, allocationTags.Length - 2);
-                    }
-                    else
-                    {
-                        allocationTags += "No allocators";
-                    }
-
-                    parent.Nodes.Add(new TreeNode()
-                    {
-                        Text = $"Activity [{allocationTags}]",
-                        Name = id,
-                        Tag = orphanedActivity
-                    });
-                    childActivities.Remove(orphanedActivity);
-                }
-            }
-            passes++;
-        }
-
-        treeView1.Nodes.Add(activitiesNode);
-        
-        var namespaceNode = new TreeNode("Namespaces")
-        {
-            Tag = $"{namespaceData.Count()} namespaces"
+            Text = "Activities",
+            Tag = summaryOutput
         };
-        foreach (var item in namespaceData)
-        {
-            var id = item.GetProperty("ID").GetString() ?? "MISSING ID";
-            var compartmentId = item.GetProperty("CompartmentId").GetInt32();
-            namespaceNode.Nodes.Add(new TreeNode()
-            {
-                Text = $"Compartment [{compartmentId}]",
-                Name = id.ToLower(),
-                Tag = item
-            });
-        }
-        treeView1.Nodes.Add(namespaceNode);
-        
-        foreach (var item in networkData)
-        {
-            var parentActivityId = item.GetProperty("Resources").GetProperty("ID").GetString() ?? "MISSING Id";
-            var id = item.GetProperty("ID").GetString() ?? "MISSING ID";
-            var parent = activitiesNode.Nodes.Find(parentActivityId.ToLower(), true).FirstOrDefault();
-            var name = item.GetProperty("Name").GetString() ?? "MISSING Name";
-            var children = parent?.Nodes;
-            if (children != null)
-            {
-                children.Add(new TreeNode()
-                {
-                    Text = $"Network [{name}]",
-                    Name = id.ToLower(),
-                    Tag = item
-                });
-            }
-        }
-        
+        var orphanedActivities = activitiesNode.Nodes.InsertNestedChildren(activitiesData, "ID", "parentId", "Activity", "Allocators.Tag");
+        var orphanedNetworks = activitiesNode.Nodes.InsertNestedChildren(networkData, "ID", "Resources.ID", "Network", "Name");
+        var orphanedEndpoints = activitiesNode.Nodes.InsertNestedChildren(endpointData, "ID", "Resources.ID", "Endpoint", "Name");
+        var orphanedPolicies = activitiesNode.Nodes.InsertNestedChildren(policyData, "ID", "Resources.ID", "Policy", "Name");
+        treeView1.Nodes.Add(activitiesNode);
+
+        var orphansNode = new TreeNode("Orphaned Data");
+        orphansNode.Nodes.InsertChildren(orphanedActivities, "ID", "Activities", "Allocators.Tag");
+        orphansNode.Nodes.InsertChildren(orphanedNetworks, "ID", "Network", "Name");
+        orphansNode.Nodes.InsertChildren(orphanedEndpoints, "ID", "Endpoint", "Name");
+        orphansNode.Nodes.InsertChildren(orphanedPolicies, "ID", "Endpoint", "Name");
+
         var endpointIds = new List<string>();
         foreach (var item in endpointData)
         {
-            var parentActivityId = item.GetProperty("Resources").GetProperty("ID").GetString() ?? "MISSING Id";
-            var id = item.GetProperty("ID").GetString() ?? "MISSING ID";
+            var id = item.GetJsonDataAsString("ID");
             endpointIds.Add(id);
-            var parent = activitiesNode.Nodes.Find(parentActivityId.ToLower(), true).FirstOrDefault();
-            var name = item.GetProperty("Name").GetString() ?? "MISSING Name";
-            var children = parent?.Nodes;
-            if (children != null)
-            {
-                children.Add(new TreeNode()
-                {
-                    Text = $"Endpoint [{name}]",
-                    Name = id.ToLower(),
-                    Tag = item
-                });
-            }
         }
-        
-        foreach (var item in policyData)
-        {
-            var parentActivityId = "MISSING Id";
-            if(item.TryGetProperty("Resources", out JsonElement resourcesEl))
-            {
-                if(resourcesEl.TryGetProperty("ID", out JsonElement idEl))
-                {
-                    parentActivityId = idEl.GetString() ?? "MISSING Id";
-                }
-            }
-            var id = "Missing ID";
-            if(item.TryGetProperty("ID", out JsonElement idEl2))
-            {
-                id = idEl2.GetString() ?? "NO ID";
-            }
-
-            var parent = activitiesNode.Nodes.Find(parentActivityId.ToLower(), true).FirstOrDefault();
-            if (parent is not null)
-            {
-                parent.Nodes.Add(new TreeNode()
-                {
-                    Text = $"Policy [{id}]",
-                    Name = id.ToLower(),
-                    Tag = item
-                });
-            }
-        }
-        
         var endpointStatsData = Program.HnsAccess.GetEndpointStats(endpointIds);
+        activitiesNode.Nodes.InsertNestedChildren(endpointStatsData, "InstanceId", "EndpointId", "Endpoint Stats", "Name");
+
+        var orphanedCompute = treeView1.Nodes.InsertChildrenWithMatchingParentReference(computeData, endpointData, "Id", "ID", "VirtualMachine", "Virtual Machine", "Owner");
+        orphanedCompute = treeView1.Nodes.InsertChildrenWithMatchingParentReference(orphanedCompute, endpointData, "Id", "ID", "SharedContainers", "Container", "Owner");
+        orphansNode.Nodes.InsertChildren(orphanedCompute, "ID", "Compute", "Name");
+        var namespaceNode = new TreeNode
+        {
+            Text = "Namespaces",
+            Tag = $"{namespaceData.Count()} namespaces"
+        };
+        namespaceNode.Nodes.InsertChildren(namespaceData, "ID", "Namespace", "CompartmentId");
+        treeView1.Nodes.Add(namespaceNode);
+
+        if (orphansNode.Nodes.Count > 0)
+        {
+            treeView1.Nodes.Add(orphansNode);
+        }
+
+        var allData = new Dictionary<string, IEnumerable<JsonElement>>();
+        allData.Add("Namespaces", namespaceData);
+        allData.Add("Network", networkData);
+        allData.Add("Policies", policyData);
+        allData.Add("Endpoints", endpointData);
+        allData.Add("Compute", computeData);
+        allData.Add("Activities", activitiesData);
         allData.Add("EndpointStats", endpointStatsData);
-
-        foreach (var item in endpointStatsData)
-        {
-            if(item.TryGetProperty("EndpointId", out JsonElement parentEndpointId))
-            {
-                var parent = activitiesNode.Nodes.Find(parentEndpointId.GetString()?.ToLower(), true).FirstOrDefault();
-                if (parent is not null)
-                {
-                    parent.Nodes.Add(new TreeNode()
-                    {
-                        Text = $"EndpointStats [{parentEndpointId}]",
-                        Tag = item
-                    });
-                }
-            }
-        }
-        
-        var computeNode = new TreeNode("Compute");
-        foreach (var item in computeData)
-        {
-            computeNode.Nodes.Add(new TreeNode()
-            {
-                Text = Guid.NewGuid().ToString(),
-                Tag = item
-            });
-        }
-        treeView1.Nodes.Add(computeNode);
-
         EXPORT_DATA_SNAPSHOT = JsonSerializer.Serialize(allData);
     }
 

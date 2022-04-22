@@ -24,13 +24,6 @@ partial class SummaryForm
     {
         base.OnLoad(e);
         this.Text = "HNS Explorer";
-    }
-
-    protected override void OnResize(EventArgs e)
-    {
-        base.OnResize(e);
-        this.splitContainer1.Width = this.Width - 40;
-        this.splitContainer1.Height = this.Height - 100;
 
         this.textBox1.ForeColor = Program.ACTIVE_COLOR_FOREGROUND;
         this.textBox1.BackColor = Program.ACTIVE_COLOR_BACKGROUND_TEXTBOX;
@@ -62,6 +55,13 @@ partial class SummaryForm
 
         this.richTextBox1.ForeColor = Program.ACTIVE_COLOR_FOREGROUND;
         this.richTextBox1.BackColor = Program.ACTIVE_COLOR_BACKGROUND_TEXTBOX;
+    }
+
+    protected override void OnResize(EventArgs e)
+    {
+        base.OnResize(e);
+        this.splitContainer1.Width = this.Width - 40;
+        this.splitContainer1.Height = this.Height - 100;
     }
 
     #region Windows Form Designer generated code
@@ -219,6 +219,7 @@ partial class SummaryForm
             this.Controls.Add(this.splitContainer1);
             this.Controls.Add(this.button1);
             this.Icon = ((System.Drawing.Icon)(resources.GetObject("$this.Icon")));
+            this.MinimumSize = new System.Drawing.Size(815, 0);
             this.Name = "SummaryForm";
             this.Text = "Form1";
             this.Load += new System.EventHandler(this.SummaryForm_Load);
