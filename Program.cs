@@ -48,8 +48,8 @@ static class Program
     private static bool CheckSystemLightMode()
     {
         string RegistryKey = @"HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\Themes\Personalize";
-        var theme = Registry.GetValue(RegistryKey, "AppsUseLightTheme", string.Empty)?.ToString() ?? "1";
-        if (theme.Equals("1"))
+        var theme = Registry.GetValue(RegistryKey, "AppsUseLightTheme", "1");
+        if (theme is not null && theme.Equals("1"))
         {
             return true;
         }

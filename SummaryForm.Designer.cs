@@ -48,6 +48,10 @@ partial class SummaryForm
         this.button3.FlatAppearance.MouseOverBackColor = Program.ACTIVE_COLOR_BUTTON_HOVER;
         this.button3.FlatAppearance.MouseDownBackColor = Program.ACTIVE_COLOR_BUTTON_DOWN;
 
+        this.button4.FlatAppearance.BorderColor = Program.ACTIVE_COLOR_FOREGROUND;
+        this.button4.FlatAppearance.MouseOverBackColor = Program.ACTIVE_COLOR_BUTTON_HOVER;
+        this.button4.FlatAppearance.MouseDownBackColor = Program.ACTIVE_COLOR_BUTTON_DOWN;
+
         this.BackColor = Program.ACTIVE_COLOR_BACKGROUND_WINDOW;
 
         this.treeView1.ForeColor = Program.ACTIVE_COLOR_FOREGROUND;
