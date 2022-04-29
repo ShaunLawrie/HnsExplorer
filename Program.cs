@@ -1,15 +1,11 @@
-using HnsExplorer.HostContainerServices;
 using System.Runtime.InteropServices;
 using Microsoft.Win32;
-using System.Diagnostics;
+using HnsExplorer.Data;
 
 namespace HnsExplorer;
 
 static class Program
 {
-    public static HnsAccess HnsAccess = new();
-    public static HcsAccess HcsAccess = new();
-
     private const int DWMWA_USE_IMMERSIVE_DARK_MODE_BEFORE_20H1 = 19;
     private const int DWMWA_USE_IMMERSIVE_DARK_MODE = 20;
 
@@ -40,7 +36,8 @@ static class Program
     {
         ApplicationConfiguration.Initialize();
         SetWindowTheme();
-        var summaryForm = new SummaryForm();
+        var datasource = new HnsDatasource();
+        var summaryForm = new SummaryForm(datasource);
         SetTitleBarTheme(summaryForm.Handle);
         Application.Run(summaryForm);
     }
@@ -62,7 +59,7 @@ static class Program
     [DllImport("dwmapi.dll")]
     private static extern int DwmSetWindowAttribute(IntPtr hwnd, int attr, ref int attrValue, int attrSize);
 
-    private static void SetTitleBarTheme(IntPtr handle)
+    public static void SetTitleBarTheme(IntPtr handle)
     {
         if (!CheckSystemLightMode() && IsWindows10OrGreater(17763))
         {

@@ -1,4 +1,4 @@
-using HnsExplorer.Extensions;
+using HnsExplorer.Data;
 using System.Diagnostics;
 using System.Text.Json;
 using System.Text.Json.Serialization;
@@ -7,10 +7,11 @@ namespace HnsExplorer;
 
 public partial class SummaryForm : Form
 {
-    private static string? EXPORT_DATA_SNAPSHOT;
+    private HnsDatasource datasource;
 
-    public SummaryForm()
+    public SummaryForm(HnsDatasource datasource)
     {
+        this.datasource = datasource;
         InitializeComponent();
         LoadTreeview();
         textBox1.KeyPress += new KeyPressEventHandler(CheckEnterKeyPress);
@@ -20,77 +21,36 @@ public partial class SummaryForm : Form
 
     private void LoadTreeview()
     {
-        
+        datasource.Reset();
+        Task.Run(() =>
+        {
+            var loadingForm = new SplashForm(datasource);
+            if (Visible)
+            {
+                var x = Location.X + (Width / 2) - (loadingForm.Width / 2);
+                var y = Location.Y + (Height / 2) - (loadingForm.Height / 2);
+                loadingForm.StartPosition = FormStartPosition.Manual;
+                loadingForm.Location = new Point(x, y);
+            }
+            else
+            {
+                loadingForm.StartPosition = FormStartPosition.CenterScreen;
+            }
+            Application.Run(loadingForm);
+            loadingForm.Dispose();
+        });
+        datasource.Load();
 
-        var activitiesData = Program.HnsAccess.GetActivities();
-        var namespaceData = Program.HnsAccess.GetNamespaces();
-        var networkData = Program.HnsAccess.GetNetworks();
-        var policyData = Program.HnsAccess.GetPolicyLists();
-        var endpointData = Program.HnsAccess.GetEndpoints();
-        var computeData = Program.HcsAccess.GetComputeSystems();
-
-        var summaryOutput = $"Activities: {activitiesData.Count()}{Environment.NewLine}";
-        summaryOutput += $"Namespaces: {namespaceData.Count()}{Environment.NewLine}";
-        summaryOutput += $"Networks: {networkData.Count()}{Environment.NewLine}";
-        summaryOutput += $"Network policies: {policyData.Count()}{Environment.NewLine}";
-        summaryOutput += $"Network endpoints: {endpointData.Count()}{Environment.NewLine}";
-        summaryOutput += $"Compute systems: {computeData.Count()}{Environment.NewLine}";
-
-        richTextBox1.Text = summaryOutput;
-
+        richTextBox1.Text = datasource.SummaryOutput;
         treeView1.Nodes.Clear();
+        treeView1.Nodes.Add(datasource.ActivitiesNode);
+        treeView1.Nodes.Add(datasource.NamespacesNode);
+        treeView1.Nodes.Add(datasource.RoutesNode);
 
-        var activitiesNode = new TreeNode
+        if (datasource.OrphansNode.Nodes.Count > 0)
         {
-            Text = "Activities",
-            Tag = summaryOutput
-        };
-        var orphanedActivities = activitiesNode.Nodes.InsertNestedChildren(activitiesData, "ID", "parentId", "Activity", "Allocators.Tag");
-        var orphanedNetworks = activitiesNode.Nodes.InsertNestedChildren(networkData, "ID", "Resources.ID", "Network", "Name");
-        var orphanedEndpoints = activitiesNode.Nodes.InsertNestedChildren(endpointData, "ID", "Resources.ID", "Endpoint", "Name");
-        var orphanedPolicies = activitiesNode.Nodes.InsertNestedChildren(policyData, "ID", "Resources.ID", "Policy", "Name");
-        treeView1.Nodes.Add(activitiesNode);
-
-        var orphansNode = new TreeNode("Orphaned Data");
-        orphansNode.Nodes.InsertChildren(orphanedActivities, "ID", "Activities", "Allocators.Tag");
-        orphansNode.Nodes.InsertChildren(orphanedNetworks, "ID", "Network", "Name");
-        orphansNode.Nodes.InsertChildren(orphanedEndpoints, "ID", "Endpoint", "Name");
-        orphansNode.Nodes.InsertChildren(orphanedPolicies, "ID", "Endpoint", "Name");
-
-        var endpointIds = new List<string>();
-        foreach (var item in endpointData)
-        {
-            var id = item.GetJsonDataAsString("ID");
-            endpointIds.Add(id);
+            treeView1.Nodes.Add(datasource.OrphansNode);
         }
-        var endpointStatsData = Program.HnsAccess.GetEndpointStats(endpointIds);
-        activitiesNode.Nodes.InsertNestedChildren(endpointStatsData, "InstanceId", "EndpointId", "Endpoint Stats", "Name");
-
-        var orphanedCompute = treeView1.Nodes.InsertChildrenWithMatchingParentReference(computeData, endpointData, "Id", "ID", "VirtualMachine", "Virtual Machine", "Owner");
-        orphanedCompute = treeView1.Nodes.InsertChildrenWithMatchingParentReference(orphanedCompute, endpointData, "Id", "ID", "SharedContainers", "Container", "Owner");
-        orphansNode.Nodes.InsertChildren(orphanedCompute, "ID", "Compute", "Name");
-        var namespaceNode = new TreeNode
-        {
-            Text = "Namespaces",
-            Tag = $"{namespaceData.Count()} namespaces"
-        };
-        namespaceNode.Nodes.InsertChildren(namespaceData, "ID", "Namespace", "CompartmentId");
-        treeView1.Nodes.Add(namespaceNode);
-
-        if (orphansNode.Nodes.Count > 0)
-        {
-            treeView1.Nodes.Add(orphansNode);
-        }
-
-        var allData = new Dictionary<string, IEnumerable<JsonElement>>();
-        allData.Add("Namespaces", namespaceData);
-        allData.Add("Network", networkData);
-        allData.Add("Policies", policyData);
-        allData.Add("Endpoints", endpointData);
-        allData.Add("Compute", computeData);
-        allData.Add("Activities", activitiesData);
-        allData.Add("EndpointStats", endpointStatsData);
-        EXPORT_DATA_SNAPSHOT = JsonSerializer.Serialize(allData);
     }
 
     private void button1_Click(object sender, EventArgs e)
@@ -105,7 +65,7 @@ public partial class SummaryForm : Form
         if(e.Node is not null)
         {
             ClearSearchResults(treeView1.Nodes);
-            SearchRecursive(treeView1.Nodes, textBox1.Text);
+            SearchRecursive(treeView1.Nodes, textBox1.Text, false);
             e.Node.ForeColor = Program.ACTIVE_COLOR_HIGHLIGHT_FOREGROUND;
             e.Node.BackColor = Program.ACTIVE_COLOR_HIGHLIGHT_BACKGROUND;
 
@@ -208,7 +168,7 @@ public partial class SummaryForm : Form
         return false;
     }
 
-    private bool SearchRecursive(TreeNodeCollection nodes, string searchFor)
+    private bool SearchRecursive(TreeNodeCollection nodes, string searchFor, bool expandToMakeVisible = true)
     {
         if (string.IsNullOrEmpty(searchFor))
         {
@@ -221,9 +181,12 @@ public partial class SummaryForm : Form
             {
                 node.ForeColor = Program.ACTIVE_COLOR_SEARCH_FOREGROUND;
                 node.BackColor = Program.ACTIVE_COLOR_SEARCH_HIGHLIGHT;
-                node.EnsureVisible();
+                if(expandToMakeVisible)
+                {
+                    node.EnsureVisible();
+                }
             }
-            if (SearchRecursive(node.Nodes, searchFor))
+            if (SearchRecursive(node.Nodes, searchFor, expandToMakeVisible))
                 return true;
         }
         return false;
@@ -258,7 +221,7 @@ public partial class SummaryForm : Form
 
     private void button3_Click(object sender, EventArgs e)
     {
-        if(EXPORT_DATA_SNAPSHOT is null)
+        if(datasource.ExportDataSnapshot is null)
         {
             richTextBox1.Text = $"There is no data available to export";
         }
@@ -268,7 +231,7 @@ public partial class SummaryForm : Form
             var filename = $"HnsExport_{DateTime.Now.ToFileTime()}.json";
             var filePath = Path.Join(here, filename);
             TextWriter txt = new StreamWriter(filePath);
-            txt.Write(EXPORT_DATA_SNAPSHOT);
+            txt.Write(datasource.ExportDataSnapshot);
             txt.Close();
             richTextBox1.Text = $"Data saved to {filePath}";
         }
@@ -286,6 +249,22 @@ public partial class SummaryForm : Form
             Write-Host -ForegroundColor White    '                             |_|                          '
 
             Write-Host -ForegroundColor Cyan 'Using pktmon to create a packet capture'
+            $pktmon = Get-Command 'pktmon' -ErrorAction 'SilentlyContinue'
+            if($null -eq $pktmon) {
+                Write-Host -ForegroundColor Red 'The executable pktmon is not available in the PATH on this system'
+                Write-Host -ForegroundColor Red 'https://docs.microsoft.com/en-us/windows-server/networking/technologies/pktmon/pktmon'
+                Write-Host -ForegroundColor Red -NoNewline ""`nPress ENTER to close this window""
+                Read-Host
+                exit
+            }
+            $pktmonBusy = pktmon status | Where-Object { $_ -notlike '*not running*' }
+            while ($pktmonBusy) {
+                Write-Warning 'There is already a pktmon trace running, try again when this one is complete'
+                Write-Host -ForegroundColor Yellow (Invoke-Expression 'pktmon status' | Out-String)
+                Write-Host -ForegroundColor Yellow -NoNewline ""`nPress ENTER to try again""
+                Read-Host
+                $pktmonBusy = pktmon status | Where-Object { $_ -notlike '*not running*' }
+            }
             $interfaceList = pktmon list --json | ConvertFrom-Json | Foreach-Object {
                     $_ | Select-Object -ExpandProperty Components `
                        | Where-Object { $_.Type -like '*vNIC*' -or $_.Type -eq 'NetVsc' } `

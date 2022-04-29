@@ -16,9 +16,9 @@ namespace HnsExplorer.Extensions
                 var id = item.GetJsonDataAsString(identifier);
                 var nodeText = nodeTextPrefix;
                 var suffix = item.GetJsonDataAsString(nodeTextSuffix);
-                if (!suffix.Contains("No data"))
+                if (!string.IsNullOrWhiteSpace(suffix))
                 {
-                    nodeText += $" [{suffix}]";
+                    nodeText += $" [{suffix.Trim()}]";
                 }
                 element.Add(new TreeNode()
                 {
@@ -43,9 +43,9 @@ namespace HnsExplorer.Extensions
                 var id = item.GetJsonDataAsString(identifier);
                 var nodeText = nodeTextPrefix;
                 var suffix = item.GetJsonDataAsString(nodeTextSuffix);
-                if (!suffix.Contains("No data"))
+                if (!string.IsNullOrWhiteSpace(suffix))
                 {
-                    nodeText += $" [{suffix}]";
+                    nodeText += $" [{suffix.Trim()}]";
                 }
                 var hasParent = item.HasJsonData(parentIdentifier);
                 
@@ -111,9 +111,9 @@ namespace HnsExplorer.Extensions
                 var id = item.GetJsonDataAsString(identifier);
                 var nodeText = nodeTextPrefix;
                 var suffix = item.GetJsonDataAsString(nodeTextSuffix);
-                if(!suffix.Contains("No data"))
+                if (!string.IsNullOrWhiteSpace(suffix))
                 {
-                    nodeText += $" [{suffix}]";
+                    nodeText += $" [{suffix.Trim()}]";
                 }
                 
                 var parentData = elementsToSearchForParentId.FirstElementMatchingQuery(parentFieldReferencingIdentifier, id);

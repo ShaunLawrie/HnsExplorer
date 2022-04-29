@@ -6,71 +6,115 @@ namespace HnsExplorer.Extensions
     {
         public static string GetJsonDataAsString(this JsonElement element, string properties)
         {
-            var thisPropertyName = properties;
-            string remainingProperties = string.Empty;
-            if (properties.Contains('.'))
+            try
             {
-                thisPropertyName = properties.Split('.').First();
-                remainingProperties = string.Join('.', properties.Split('.').Skip(1));
-            }
-            if (element.ValueKind == JsonValueKind.Array)
-            {
-                var result = new List<string>();
-                var arrayItems = element.EnumerateArray();
-                foreach (var arrayItem in arrayItems)
+                var multiProperty = properties.Split(',');
+                var resultText = new List<string>();
+                foreach (var property in multiProperty)
                 {
-                    result.Add(arrayItem.GetJsonDataAsString(properties));
-                }
-                return string.Join(", ", result);
-            }
-            else
-            {
-                if (element.TryGetProperty(thisPropertyName, out JsonElement innerElement))
-                {
-                    if (remainingProperties.Equals(string.Empty))
+                    if(property.StartsWith("'") && property.EndsWith("'"))
                     {
-                        if(innerElement.ValueKind == JsonValueKind.Number)
+                        resultText.Add(property[1..^1]);
+                        continue;
+                    }
+                    var thisPropertyName = property;
+                    string remainingProperties = string.Empty;
+                    if (property.Contains('.'))
+                    {
+                        thisPropertyName = property.Split('.').First();
+                        remainingProperties = string.Join('.', property.Split('.').Skip(1));
+                    }
+
+                    if (element.ValueKind == JsonValueKind.Array)
+                    {
+                        var result = new List<string>();
+                        var arrayItems = element.EnumerateArray();
+                        foreach (var arrayItem in arrayItems)
                         {
-                            return innerElement.GetInt32().ToString() ?? "No data found";
+                            result.Add(arrayItem.GetJsonDataAsString(property));
                         }
-                        else
-                        {
-                            return innerElement.GetString() ?? "No data found";
-                        }
+                        resultText.Add(string.Join(", ", result.Where(s => !string.IsNullOrEmpty(s))));
                     }
                     else
                     {
-                        return GetJsonDataAsString(innerElement, remainingProperties);
+                        if (element.TryGetProperty(thisPropertyName, out JsonElement innerElement))
+                        {
+                            if (remainingProperties.Equals(string.Empty))
+                            {
+                                if (innerElement.ValueKind == JsonValueKind.Array)
+                                {
+                                    var elements = innerElement.EnumerateArray();
+                                    foreach (var elementItem in elements)
+                                    {
+                                        if (elementItem.ValueKind == JsonValueKind.Number)
+                                        {
+                                            resultText.Add(elementItem.GetInt32().ToString() ?? "No data found");
+                                        }
+                                        else
+                                        {
+                                            resultText.Add(elementItem.GetString() ?? "No data found");
+                                        }
+                                    }
+                                }
+                                else
+                                {
+                                    if (innerElement.ValueKind == JsonValueKind.Number)
+                                    {
+                                        resultText.Add(innerElement.GetInt32().ToString() ?? "No data found");
+                                    }
+                                    else
+                                    {
+                                        resultText.Add(innerElement.GetString() ?? "No data found");
+                                    }
+                                }
+                            }
+                            else
+                            {
+                                resultText.Add(GetJsonDataAsString(innerElement, remainingProperties));
+                            }
+                        }
+                        else
+                        {
+                            // no data
+                        }
                     }
                 }
-                else
-                {
-                    return $"No data at [{thisPropertyName}]";
-                }
+                return string.Join("", resultText);
+            }
+            catch (Exception ex)
+            {
+                return $"Failed to get property [{properties}] detail: {ex.Message}";
             }
         }
 
         public static bool HasJsonData(this JsonElement element, string properties)
         {
-            var thisPropertyName = properties;
-            string remainingProperties = string.Empty;
-            if (properties.Contains('.'))
+            try
             {
-                thisPropertyName = properties.Split('.').First();
-                remainingProperties = string.Join('.', properties.Split('.').Skip(1));
-            }
-            if (element.TryGetProperty(thisPropertyName, out JsonElement innerElement))
-            {
-                if (remainingProperties.Equals(string.Empty))
+                var thisPropertyName = properties;
+                string remainingProperties = string.Empty;
+                if (properties.Contains('.'))
                 {
-                    return true;
+                    thisPropertyName = properties.Split('.').First();
+                    remainingProperties = string.Join('.', properties.Split('.').Skip(1));
+                }
+                if (element.TryGetProperty(thisPropertyName, out JsonElement innerElement))
+                {
+                    if (remainingProperties.Equals(string.Empty))
+                    {
+                        return true;
+                    }
+                    else
+                    {
+                        return HasJsonData(innerElement, remainingProperties);
+                    }
                 }
                 else
                 {
-                    return HasJsonData(innerElement, remainingProperties);
+                    return false;
                 }
             }
-            else
+            catch
             {
                 return false;
             }
@@ -91,46 +135,53 @@ namespace HnsExplorer.Extensions
 
         public static JsonElement? FirstElementMatchingQuery(this JsonElement element, string properties, string expectedValue)
         {
-            var thisPropertyName = properties;
-            string remainingProperties = string.Empty;
-            if (properties.Contains('.'))
+            try
             {
-                thisPropertyName = properties.Split('.').First();
-                remainingProperties = string.Join('.', properties.Split('.').Skip(1));
-            }
-            if (element.TryGetProperty(thisPropertyName, out JsonElement innerElement))
-            {
-                if (remainingProperties.Equals(string.Empty))
+                var thisPropertyName = properties;
+                string remainingProperties = string.Empty;
+                if (properties.Contains('.'))
                 {
-                    string result;
-                    if (innerElement.ValueKind == JsonValueKind.Number)
+                    thisPropertyName = properties.Split('.').First();
+                    remainingProperties = string.Join('.', properties.Split('.').Skip(1));
+                }
+                if (element.TryGetProperty(thisPropertyName, out JsonElement innerElement))
+                {
+                    if (remainingProperties.Equals(string.Empty))
                     {
-                        result = innerElement.GetInt32().ToString();
-                    }
-                    else if (innerElement.ValueKind == JsonValueKind.Array)
-                    {
-                        var arrayValues = innerElement.EnumerateArray();
-                        result = string.Join(", ", arrayValues);
+                        string result;
+                        if (innerElement.ValueKind == JsonValueKind.Number)
+                        {
+                            result = innerElement.GetInt32().ToString();
+                        }
+                        else if (innerElement.ValueKind == JsonValueKind.Array)
+                        {
+                            var arrayValues = innerElement.EnumerateArray();
+                            result = string.Join(", ", arrayValues);
+                        }
+                        else
+                        {
+                            result = innerElement.GetString() ?? string.Empty;
+                        }
+                        if (result.Contains(expectedValue))
+                        {
+                            return element;
+                        }
+                        else
+                        {
+                            return null;
+                        }
                     }
                     else
                     {
-                        result = innerElement.GetString() ?? string.Empty;
-                    }
-                    if(result.Contains(expectedValue))
-                    {
-                        return element;
-                    }
-                    else
-                    {
-                        return null;
+                        return element.FirstElementMatchingQuery(remainingProperties, expectedValue);
                     }
                 }
                 else
                 {
-                    return element.FirstElementMatchingQuery(remainingProperties, expectedValue);
+                    return null;
                 }
             }
-            else
+            catch
             {
                 return null;
             }
