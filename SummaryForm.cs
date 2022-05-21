@@ -44,7 +44,6 @@ public partial class SummaryForm : Form
         richTextBox1.Text = datasource.SummaryOutput;
         treeView1.Nodes.Clear();
         treeView1.Nodes.Add(datasource.ActivitiesNode);
-        treeView1.Nodes.Add(datasource.NamespacesNode);
         treeView1.Nodes.Add(datasource.RoutesNode);
 
         if (datasource.OrphansNode.Nodes.Count > 0)

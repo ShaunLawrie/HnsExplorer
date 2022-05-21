@@ -162,7 +162,7 @@ namespace HnsExplorer.Extensions
                         {
                             result = innerElement.GetString() ?? string.Empty;
                         }
-                        if (result.Contains(expectedValue))
+                        if (result.Contains(expectedValue, StringComparison.InvariantCultureIgnoreCase))
                         {
                             return element;
                         }
