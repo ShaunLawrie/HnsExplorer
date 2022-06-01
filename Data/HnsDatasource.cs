@@ -18,17 +18,19 @@ namespace HnsExplorer.Data
         public string ExportDataSnapshot { get; private set; }
 
         public TreeNode RoutesNode { get; private set; }
+        public TreeNode ContainerdNode { get; private set; }
         public TreeNode ActivitiesNode { get; private set; }
         public TreeNode OrphansNode { get; private set; }
 
         public HnsDatasource()
         {
             NumberOfStepsLoaded = 0;
-            NumberOfStepsTotal = 20;
+            NumberOfStepsTotal = 21;
             LoadingState = "Initialised";
             SummaryOutput = "No data";
             ExportDataSnapshot = "{}";
             RoutesNode = new TreeNode();
+            ContainerdNode = new TreeNode();
             ActivitiesNode = new TreeNode();
             OrphansNode = new TreeNode();
         }
@@ -48,6 +50,7 @@ namespace HnsExplorer.Data
             SummaryOutput = "No data";
             ExportDataSnapshot = "{}";
             RoutesNode = new TreeNode();
+            ContainerdNode = new TreeNode();
             ActivitiesNode = new TreeNode();
             OrphansNode = new TreeNode();
         }
@@ -91,6 +94,44 @@ namespace HnsExplorer.Data
                 Tag = hostRouteList
             };
 
+            UpdateLoadingState("Getting containerd config...");
+            var config = "C:\\Program Files\\containerd\\config.toml";
+            var log = "C:\\ProgramData\\containerd\\root\\panic.log";
+            if (File.Exists(config) || File.Exists(log))
+            {
+                ContainerdNode = new TreeNode
+                {
+                    Text = "ContainerD",
+                    Tag = "ContainerD config and logging"
+                };
+
+                if(File.Exists(config))
+                {
+                    using (var fileStream = new FileStream(config, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
+                    using (var textReader = new StreamReader(fileStream))
+                    {
+                        ContainerdNode.Nodes.Add(new TreeNode
+                        {
+                            Text = "Config",
+                            Tag = textReader.ReadToEnd()
+                        });
+                    }
+                }
+
+                if (File.Exists(log))
+                {
+                    using (var fileStream = new FileStream(log, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
+                    using (var textReader = new StreamReader(fileStream))
+                    {
+                        ContainerdNode.Nodes.Add(new TreeNode
+                        {
+                            Text = "Logging",
+                            Tag = string.Join("\n\n", textReader.ReadToEnd().Split('\n'))
+                        });
+                    }
+                }
+            }
+
             ActivitiesNode = new TreeNode
             {
                 Text = "Activities",
@@ -129,7 +170,11 @@ namespace HnsExplorer.Data
             orphanedCompute = ActivitiesNode.Nodes.InsertChildrenWithMatchingParentReference(orphanedCompute, endpointData, "Id", "ID", "SharedContainers", "Container", "Owner");
 
             UpdateLoadingState("Building orphan tree...");
-            OrphansNode = new TreeNode("Orphaned Data");
+            OrphansNode = new TreeNode
+            {
+                Text = "Orphaned Data",
+                Tag = "Data that can't easily be mapped to a node in the HNS activity list"
+            };
             OrphansNode.Nodes.InsertChildren(orphanedNamesaces, "ID", "Namespace", "ID");
             OrphansNode.Nodes.InsertChildren(orphanedActivities, "ID", "Activities", "Allocators.Tag");
             OrphansNode.Nodes.InsertChildren(orphanedNetworks, "ID", "Network", "Name");
@@ -154,6 +199,7 @@ namespace HnsExplorer.Data
             {
                 allData.Add("Routes", routeJsonElement);
             }
+            // not exporting config cbf
             ExportDataSnapshot = JsonSerializer.Serialize(allData);
             UpdateLoadingState("Done");
         }

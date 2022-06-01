@@ -50,6 +50,11 @@ public partial class SummaryForm : Form
         {
             treeView1.Nodes.Add(datasource.OrphansNode);
         }
+
+        if (datasource.ContainerdNode.Nodes.Count > 0)
+        {
+            treeView1.Nodes.Add(datasource.ContainerdNode);
+        }
     }
 
     private void button1_Click(object sender, EventArgs e)
@@ -97,6 +102,7 @@ public partial class SummaryForm : Form
             return;
         }
         richTextBox.SelectAll();
+        richTextBox.SelectionColor = richTextBox.ForeColor;
         richTextBox.SelectionBackColor = richTextBox.BackColor;
         var searchIndex = richTextBox.Text.IndexOf(textBox1.Text, StringComparison.OrdinalIgnoreCase);
         var firstSearchIndex = searchIndex;
@@ -135,6 +141,7 @@ public partial class SummaryForm : Form
             ClearSearchResults(treeView1.Nodes);
             SearchRecursive(treeView1.Nodes, textBox1.Text);
             SelectFirst(treeView1.Nodes, textBox1.Text);
+            HighlightSearchTerms(richTextBox1);
         }
     }
 
@@ -252,7 +259,7 @@ public partial class SummaryForm : Form
             if($null -eq $pktmon) {
                 Write-Host -ForegroundColor Red 'The executable pktmon is not available in the PATH on this system'
                 Write-Host -ForegroundColor Red 'https://docs.microsoft.com/en-us/windows-server/networking/technologies/pktmon/pktmon'
-                Write-Host -ForegroundColor Red -NoNewline ""`nPress ENTER to close this window""
+                Write-Host -ForegroundColor Red -NoNewline ""`nPress ENTER to close this window ""
                 Read-Host
                 exit
             }
@@ -260,7 +267,7 @@ public partial class SummaryForm : Form
             while ($pktmonBusy) {
                 Write-Warning 'There is already a pktmon trace running, try again when this one is complete'
                 Write-Host -ForegroundColor Yellow (Invoke-Expression 'pktmon status' | Out-String)
-                Write-Host -ForegroundColor Yellow -NoNewline ""`nPress ENTER to try again""
+                Write-Host -ForegroundColor Yellow -NoNewline ""`nPress ENTER to try again ""
                 Read-Host
                 $pktmonBusy = pktmon status | Where-Object { $_ -notlike '*not running*' }
             }
@@ -287,7 +294,7 @@ public partial class SummaryForm : Form
             Write-Host ""Running '$command'""
             Invoke-Expression $command
 
-            Write-Host -ForegroundColor Cyan -NoNewline ""`nTrace is recording, press ENTER to stop""
+            Write-Host -ForegroundColor Cyan -NoNewline ""`nTrace is recording, press ENTER to stop ""
             Read-Host
             $command = 'pktmon stop'
             Write-Host ""Running '$command'""
@@ -298,13 +305,212 @@ public partial class SummaryForm : Form
             Invoke-Expression $command
 
             Write-Host -ForegroundColor Cyan ""`nTrace data is available at:`n  '$($filename -replace '\.etl$', '.pcapng')'""
-            Write-Host -ForegroundColor Cyan -NoNewline ""`nPress ENTER to close this window""
+            Write-Host -ForegroundColor Cyan -NoNewline ""`nPress ENTER to close this window ""
             Read-Host
         ";
         ProcessStartInfo startInfo = new ProcessStartInfo(path);
         startInfo.WorkingDirectory = Directory.GetCurrentDirectory();
         startInfo.ArgumentList.Add("-C");
         startInfo.ArgumentList.Add(pktmonScript);
+        startInfo.UseShellExecute = true;
+        Process.Start(startInfo);
+    }
+
+    private void button5_Click(object sender, EventArgs e)
+    {
+        var path = @"C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe";
+        var hcsTraceScript = @"
+            Write-Host -ForegroundColor DarkRed '           __  __     _____         _                     '
+            Write-Host -ForegroundColor DarkRed '  /\  /\/\ \ \/ _\   / ___/ ___ __ | | ___  _ __ ___ _ __ '
+            Write-Host -ForegroundColor Red     ' / /_/ /  \/ /\ \   / __\ \/ / ''_ \| |/ _ \| ''__/ _ \ ''__|'
+            Write-Host -ForegroundColor Red     '/ __  / /\  / _\ \ / /___>  <| |_) | | (_) | | |  __/ |   '
+            Write-Host -ForegroundColor White   '\/ /_/\_\ \/  \__/ \ ___/_/\_\ .__/|_|\___/|_|  \___|_|   '
+            Write-Host -ForegroundColor White   '                             |_|                          '
+
+            Write-Host -ForegroundColor DarkRed 'Using Windows Performance Recorder to capture an ETL trace'
+            $wpr = Get-Command 'wpr.exe' -ErrorAction 'SilentlyContinue'
+            if($null -eq $wpr) {
+                Write-Host -ForegroundColor Red 'The executable wpr.exe is not available in the PATH on this system'
+                Write-Host -ForegroundColor Red 'https://docs.microsoft.com/en-us/windows-hardware/test/wpt/windows-performance-recorder'
+                Write-Host -ForegroundColor Red -NoNewline ""`nPress ENTER to close this window ""
+                Read-Host
+                exit
+            }
+            $wprAvailable = wpr.exe -status | Where-Object { $_ -like '*is not recording*' }
+            while (!$wprAvailable) {
+                Write-Warning 'There is already a wpr.exe session running, try again when this one is complete'
+                Write-Host -ForegroundColor Yellow (Invoke-Expression 'wpr.exe -status' | Out-String)
+                Write-Host -ForegroundColor Yellow -NoNewline ""`nPress ENTER to try again ""
+                Read-Host
+                $wprAvailable = wpr.exe -status | Where-Object { $_ -like '*is not recording*' }
+            }
+
+            $traceConfig = ""<?xml version=`""1.0`"" encoding=`""utf-8`""?>
+<WindowsPerformanceRecorder Version=`""1.0`"" Author=`""WPR Profile Generator`"" Copyright=`""Microsoft Corporation`"" Company=`""Microsoft Corporation`"">
+    <Profiles>
+        <SystemCollector Id=`""SystemCollector`"" Name=`""NT Kernel Logger`"">
+            <BufferSize Value=`""1024`"" />
+            <Buffers Value=`""48`"" />
+        </SystemCollector>
+        <EventCollector Id=`""EventCollector_HCSTraceSession`"" Name=`""HCSTraceSession`"">
+            <BufferSize Value=`""512`"" />
+            <Buffers Value=`""32`"" />
+        </EventCollector>
+        <SystemProvider Id=`""SystemProvider`"">
+            <Keywords>
+                <Keyword Value=`""Loader`"" />
+                <Keyword Value=`""ProcessThread`"" />
+            </Keywords>
+        </SystemProvider>
+        <EventProvider Id=`""EventProvider_HvSocketTraceProvider`"" Name=`""B2ED3BDB-CD74-5B2C-F660-85079CA074B3`"" NonPagedMemory=`""true`"">
+            <Keywords>
+                <Keyword Value=`""0x0`""/>
+            </Keywords>
+        </EventProvider>
+        <EventProvider Id=`""HCS_NoTransport_Provider`"" Name=`""80CE50DE-D264-4581-950D-ABADEEE0D340`"" Level=`""6`"">
+            <Keywords>
+                <Keyword Value=`""0xF000FFFFF47D`"" />
+            </Keywords>
+        </EventProvider>
+        <EventProvider Id=`""HCS_Full_Provider`"" Name=`""80CE50DE-D264-4581-950D-ABADEEE0D340`"" Level=`""6`"">
+            <Keywords>
+                <Keyword Value=`""0xF000FFFFFFFF`"" />
+            </Keywords>
+        </EventProvider>
+        <EventProvider Id=`""HCS_VmComputeDll`"" Name=`""af7fd3a7-b248-460c-a9f5-fec39ef8468c`"" Level=`""6`"">
+            <Keywords>
+                <Keyword Value=`""0xFFFFFFFFFFFFFFFF`"" />
+            </Keywords>
+        </EventProvider>
+        <EventProvider Id=`""ContainerDll_Provider`"" Name=`""67EB0417-9297-42AE-A1D9-98BFEB359059`"" Level=`""6`"">
+            <Keywords>
+                <Keyword Value=`""0xF000FFFFFFFF`"" />
+            </Keywords>
+        </EventProvider>
+        <EventProvider Id=`""ContainerStorage_Provider`"" Name=`""2551390d-5927-5c84-6f0a-027a7e78d38d`"" Level=`""6`"">
+            <Keywords>
+                <Keyword Value=`""0xF000FFFFFFFF`"" />
+            </Keywords>
+        </EventProvider>
+        <EventProvider Id=`""HyperV_Worker`"" Name=`""51ddfa29-d5c8-4803-be4b-2ecb715570fe`"" Level=`""6`"">
+            <Keywords>
+                <Keyword Value=`""0xFFFFFFFFFFFFFFFF`"" />
+            </Keywords>
+        </EventProvider>
+        <EventProvider Id=`""HyperV_Worker_Telemetry`"" Name=`""06C601B3-6957-4F8C-A15F-74875B24429D`"" Level=`""6`"">
+            <Keywords>
+                <Keyword Value=`""0xFFFFFFFFFFFFFFFF`"" />
+            </Keywords>
+        </EventProvider>
+        <EventProvider Id=`""HyperV_Chipset`"" Name=`""de9ba731-7f33-4f44-98c9-6cac856b9f83`"" Level=`""6`"">
+            <Keywords>
+                <Keyword Value=`""0xFFFFFFFFFFFFFFFF`"" />
+            </Keywords>
+        </EventProvider>
+        <EventProvider Id=`""HyperV_GuestCrash`"" Name=`""9a02f67c-133d-58be-ecad-0d891d8b6fd1`"" Level=`""5`"">
+            <Keywords>
+                <Keyword Value=`""0xFFFFFFFFFFFFFFFF`"" />
+            </Keywords>
+        </EventProvider>
+        <EventProvider Id=`""HyperV_GuestCrash_EventLog`"" Name=`""C7C9E4F7-C41D-5C68-F104-D72A920016C7`"" Level=`""6`"">
+            <Keywords>
+                <Keyword Value=`""0xFFFFFFFFFFFFFFFF`"" />
+            </Keywords>
+        </EventProvider>
+        <EventProvider Id=`""WerReporting`"" Name=`""cc79cf77-70d9-4082-9b52-23f3a3e92fe4`"" Level=`""6`"">
+            <Keywords>
+                <Keyword Value=`""0xFFFFFFFFFFFFFFFF`"" />
+            </Keywords>
+        </EventProvider>
+        <EventProvider Id=`""WerFaultReporting`"" Name=`""1377561d-9312-452c-ad13-c4a1c9c906e0`"" Level=`""6`"">
+            <Keywords>
+                <Keyword Value=`""0xFFFFFFFFFFFFFFFF`"" />
+            </Keywords>
+        </EventProvider>
+        <Profile Id=`""HcsWer.Verbose.File`"" Name=`""HcsWer`"" Description=`""Windows error reporting`"" LoggingMode=`""File`"" DetailLevel=`""Verbose`"">
+            <Collectors>
+                <SystemCollectorId Value=`""SystemCollector`"">
+                    <SystemProviderId Value=`""SystemProvider`"" />
+                </SystemCollectorId>
+                <EventCollectorId Value=`""EventCollector_HCSTraceSession`"">
+                    <EventProviders>
+                        <EventProviderId Value=`""WerReporting`"" />
+                        <EventProviderId Value=`""WerFaultReporting`"" />
+                    </EventProviders>
+                </EventCollectorId>
+            </Collectors>
+        </Profile>
+        <Profile Id=`""HcsWithHvSocket.Verbose.File`"" Name=`""HcsWithHvSocket`"" Description=`""HCS (host compute service) tracing with transport and hvsocket logging`"" LoggingMode=`""File`"" DetailLevel=`""Verbose`"">
+            <Collectors>
+                <SystemCollectorId Value=`""SystemCollector`"">
+                    <SystemProviderId Value=`""SystemProvider`"" />
+                </SystemCollectorId>
+                <EventCollectorId Value=`""EventCollector_HCSTraceSession`"">
+                    <EventProviders>
+                        <EventProviderId Value=`""HCS_Full_Provider`"" />
+                        <EventProviderId Value=`""HCS_VmComputeDll`"" />
+                        <EventProviderId Value=`""HyperV_Worker`"" />
+                        <EventProviderId Value=`""HyperV_Worker_Telemetry`"" />
+                        <EventProviderId Value=`""HyperV_Chipset`"" />
+                        <EventProviderId Value=`""HyperV_GuestCrash`"" />
+                        <EventProviderId Value=`""HyperV_GuestCrash_EventLog`"" />
+                        <EventProviderId Value=`""EventProvider_HvSocketTraceProvider`"" />
+                    </EventProviders>
+                </EventCollectorId>
+            </Collectors>
+        </Profile>
+        <Profile Id=`""HcsArgon.Verbose.File`"" Name=`""HcsArgon`"" Description=`""HCS (host compute service) tracing for Windows Containers`"" LoggingMode=`""File`"" DetailLevel=`""Verbose`"">
+            <Collectors>
+                <SystemCollectorId Value=`""SystemCollector`"">
+                    <SystemProviderId Value=`""SystemProvider`"" />
+                </SystemCollectorId>
+                <EventCollectorId Value=`""EventCollector_HCSTraceSession`"">
+                    <EventProviders>
+                        <EventProviderId Value=`""HCS_NoTransport_Provider`"" />
+                        <EventProviderId Value=`""ContainerDll_Provider`"" />
+                        <EventProviderId Value=`""ContainerStorage_Provider`"" />
+                        <EventProviderId Value=`""WerReporting`"" />
+                    </EventProviders>
+                </EventCollectorId>
+            </Collectors>
+        </Profile>
+    </Profiles>
+</WindowsPerformanceRecorder>
+""
+            $profilePath = ""$(pwd)\wpr_profile.wprp""
+            Set-Content -Force -Path $profilePath -Value $traceConfig
+
+            $filename = ""$(pwd)\wpr_$((Get-Date).ToFileTime()).etl""
+            $command = ""wpr.exe -start $profilePath!HcsArgon -start $profilePath!HcsWithHvSocket -start $profilePath!HcsWer -filemode""
+            Write-Host ""Trace command is:`n'$command'""
+            Write-Host -NoNewline ""Press ENTER to start the trace ""
+            Read-Host
+            Invoke-Expression $command
+
+            Write-Host -ForegroundColor DarkRed -NoNewline ""`nTrace is recording, press ENTER to stop ""
+            Read-Host
+            $command = ""wpr.exe -stop `""$filename`"" `""Automated HCS trace from HNS explorer`""""
+            Write-Host ""Running '$command'""
+            Invoke-Expression $command
+
+            if((Get-Command 'wpa.exe' -ErrorAction 'SilentlyContinue')) {
+                $command = ""wpa.exe `""$filename`""""
+                Write-Host ""Running '$command'""
+                Invoke-Expression $command
+            } else {
+                Write-Host 'Windows Performance Analyzer is not installed, you need to install it to view the trace file'
+                Write-Host 'https://docs.microsoft.com/en-us/windows-hardware/test/wpt/windows-performance-analyzer'
+            }
+
+            Write-Host -ForegroundColor DarkRed ""`nTrace is saved at '$filename' to be opened by Windows Performance Analyzer""
+            Write-Host -ForegroundColor DarkRed -NoNewline ""`nPress ENTER to close this window ""
+            Read-Host
+        ";
+            
+        ProcessStartInfo startInfo = new ProcessStartInfo(path);
+        startInfo.WorkingDirectory = Directory.GetCurrentDirectory();
+        startInfo.ArgumentList.Add("-C");
+        startInfo.ArgumentList.Add(hcsTraceScript);
         startInfo.UseShellExecute = true;
         Process.Start(startInfo);
     }
