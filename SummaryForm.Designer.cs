@@ -65,6 +65,9 @@ partial class SummaryForm
 
         this.richTextBox1.ForeColor = Program.ACTIVE_COLOR_FOREGROUND;
         this.richTextBox1.BackColor = Program.ACTIVE_COLOR_BACKGROUND_TEXTBOX;
+        
+        this.splitContainer1.Width = this.Width - 40;
+        this.splitContainer1.Height = this.Height - 100;
     }
 
     protected override void OnResize(EventArgs e)
